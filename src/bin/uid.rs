@@ -8,44 +8,53 @@ use std::io::{StdoutLock, Write};
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 enum Payload {
-    Echo { echo: String },
-    EchoOk { echo: String },
+    Generate,
+    GenerateOk {
+        #[serde(rename = "id")]
+        uid: String,
+    },
 }
 
-struct EchoNode {
+struct UniqueNode {
+    node: String,
     id: usize,
 }
 
-impl Node<(), Payload> for EchoNode {
-    fn from_init(_state: (), _init: echo::Init) -> anyhow::Result<Self>
+impl Node<(), Payload> for UniqueNode {
+    fn from_init(_state: (), init: Init) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
-        Ok(EchoNode { id: 1 })
+        Ok(UniqueNode {
+            id: 1,
+            node: init.node_id,
+        })
     }
     fn step(&mut self, input: Message<Payload>, output: &mut StdoutLock) -> anyhow::Result<()> {
         match input.body.payload {
-            Payload::Echo { echo } => {
+            Payload::Generate => {
+                // let uid = Ulid::new().to_string();
+                let uid = format!("{}-{}", self.node, self.id);
                 let reply = Message {
                     src: input.dst,
                     dst: input.src,
                     body: Body {
                         id: Some(self.id),
                         in_reply_to: input.body.id,
-                        payload: Payload::EchoOk { echo },
+                        payload: Payload::GenerateOk { uid },
                     },
                 };
                 serde_json::to_writer(&mut *output, &reply)
-                    .context("Serialize response to error")?;
+                    .context("Serialize response to generate")?;
                 output.write_all(b"\n").context("write trailing newline")?;
                 self.id += 1;
             }
-            Payload::EchoOk { .. } => {}
+            Payload::GenerateOk { .. } => {}
         }
         Ok(())
     }
 }
 
 fn main() -> anyhow::Result<()> {
-    main_loop::<_, EchoNode, _>(())
+    main_loop::<_, UniqueNode, _>(())
 }
