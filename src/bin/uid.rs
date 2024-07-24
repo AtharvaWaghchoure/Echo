@@ -31,19 +31,11 @@ impl Node<(), Payload> for UniqueNode {
         })
     }
     fn step(&mut self, input: Message<Payload>, output: &mut StdoutLock) -> anyhow::Result<()> {
-        match input.body.payload {
+        let mut reply = input.into_reply(Some(&mut self.id));
+        match reply.body.payload {
             Payload::Generate => {
-                // let uid = Ulid::new().to_string();
                 let uid = format!("{}-{}", self.node, self.id);
-                let reply = Message {
-                    src: input.dst,
-                    dst: input.src,
-                    body: Body {
-                        id: Some(self.id),
-                        in_reply_to: input.body.id,
-                        payload: Payload::GenerateOk { uid },
-                    },
-                };
+                reply.body.payload = Payload::GenerateOk { uid };
                 serde_json::to_writer(&mut *output, &reply)
                     .context("Serialize response to generate")?;
                 output.write_all(b"\n").context("write trailing newline")?;

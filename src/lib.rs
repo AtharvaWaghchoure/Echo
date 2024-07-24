@@ -10,6 +10,24 @@ pub struct Message<Payload> {
     pub body: Body<Payload>,
 }
 
+impl<Payload> Message<Payload> {
+    pub fn into_reply(self, id: Option<&mut usize>) -> Self {
+        Self {
+            src: self.dst,
+            dst: self.src,
+            body: Body {
+                id: id.map(|id| {
+                    let mid = *id;
+                    *id += 1;
+                    mid
+                }),
+                in_reply_to: self.body.id,
+                payload: self.body.payload,
+            },
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Body<Payload> {
     #[serde(rename = "msg_id")]
@@ -64,8 +82,8 @@ where
     let mut node: N = Node::from_init(init_state, init).context("node initialization failed")?;
 
     let reply = Message {
-        src: init_msg.src,
-        dst: init_msg.dst,
+        src: init_msg.dst,
+        dst: init_msg.src,
         body: Body {
             id: Some(0),
             in_reply_to: init_msg.body.id,
